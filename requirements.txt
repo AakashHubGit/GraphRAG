@@ -15,3 +15,4 @@ langchain_google_genai
 langchain_community
 langchain_groq
 rouge_score
+google-generativeai

@@ -1,0 +1,10 @@
+faiss_index_sim
+graphrag
+Guide
+lib
+Proposals
+utils.py
+__pycache__
+.env
+Dict
+List[str]

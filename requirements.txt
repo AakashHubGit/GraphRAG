@@ -1,0 +1,17 @@
+networkx
+sentence-transformers
+openai
+neo4j
+spacy
+matplotlib
+numpy
+scikit-learn
+faiss-cpu
+pyvis
+dotenv
+PyPDF2
+langchain
+langchain_google_genai
+langchain_community
+langchain_groq
+rouge_score

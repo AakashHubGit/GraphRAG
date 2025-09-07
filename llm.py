@@ -1,10 +1,12 @@
 from typing import Dict
 import json
+import os
 import google.generativeai as genai
-from utils import api_key
+from dotenv import load_dotenv
 
+load_dotenv()
 
-genai.configure(api_key=api_key)
+genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
 
 def extract_with_gemini(text: str) -> Dict:
     """

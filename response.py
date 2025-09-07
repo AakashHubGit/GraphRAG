@@ -13,15 +13,17 @@ from retrieval import GraphRAGRetriever
 import openai
 from typing import Optional
 import google.generativeai as genai
-from utils import api_key
+import os
+from dotenv import load_dotenv
 
+load_dotenv()
 
 class GraphRAGSystem:
     def __init__(self, model: str = "gemini-2.0-flash"):
         self.processor = DocumentProcessor()
         self.kg = KnowledgeGraph()
         self.retriever = None
-        genai.configure(api_key=api_key)
+        genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
         self.model = model
         self.client = genai.GenerativeModel(model)
 

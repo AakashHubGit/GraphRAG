@@ -13,12 +13,16 @@ from retrieval import GraphRAGRetriever
 from response import GraphRAGSystem
 import openai
 from typing import Optional
-from utils import api_key
 import google.generativeai as genai
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+
 
 class AdvancedGraphRAG(GraphRAGSystem):
     def __init__(self, model: str = "gemini-2.0-flash"):
-        genai.configure(api_key=api_key)
+        genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
         self.client = genai.GenerativeModel(model)
     
     def multi_hop_reasoning(self, query: str, max_hops: int = 3) -> Dict:

@@ -1,4 +1,4 @@
-# graph_rag.py - Fixed version with consistent return structure
+# graph_rag.py - Fixed version with single initialization
 
 import spacy
 import networkx as nx
@@ -81,6 +81,7 @@ class KnowledgeGraph:
         self.entity_embeddings = {}
         self.text_chunks = {}
         self.chunk_embeddings = {}
+        self.is_built = False  # Track if graph is already built
 
     def add_entity(self, entity: str, entity_type: str, metadata: Dict = None):
         """Add entity to knowledge graph"""
@@ -92,10 +93,15 @@ class KnowledgeGraph:
         self.graph.add_edge(subject, obj, relation=predicate, weight=weight)
     
     def build_from_documents(self, documents: List[str], processor: DocumentProcessor):
-        """Build knowledge graph from documents"""
+        """Build knowledge graph from documents - only if not already built"""
+        if self.is_built:
+            print("Knowledge graph already built. Skipping...")
+            return
+            
         chunk_id = 0
         
         for doc_id, document in enumerate(documents):
+            print(f"Processing document {doc_id + 1}/{len(documents)}...")
             # Extract entities and relations
             doc_analysis = processor.extract_entities_relations_llm(document)
             
@@ -133,6 +139,8 @@ class KnowledgeGraph:
         
         # Generate entity embeddings
         self._generate_entity_embeddings(processor)
+        self.is_built = True
+        print(f"Knowledge base built: {len(self.graph.nodes)} entities, {len(self.graph.edges)} relations")
     
     def _generate_entity_embeddings(self, processor: DocumentProcessor):
         """Generate context-aware embeddings for entities"""
@@ -265,17 +273,22 @@ class GraphRAGSystem:
         self.processor = DocumentProcessor()
         self.kg = KnowledgeGraph()
         self.retriever = None
+        self.is_initialized = False  # Track initialization
         
         # Initialize Gemini
         genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
         self.client = genai.GenerativeModel(model)
     
     def build_knowledge_base(self, documents: List[str]):
-        """Build the complete knowledge base"""
+        """Build the complete knowledge base - only once"""
+        if self.is_initialized:
+            print("Graph RAG system already initialized. Skipping...")
+            return
+            
         print("Building knowledge graph...")
         self.kg.build_from_documents(documents, self.processor)
         self.retriever = GraphRAGRetriever(self.kg)
-        print(f"Knowledge base built: {len(self.kg.graph.nodes)} entities, {len(self.kg.graph.edges)} relations")
+        self.is_initialized = True
     
     def query(self, question: str) -> Dict:
         """Main query function implementing Graph RAG"""
@@ -344,125 +357,20 @@ Answer:"""
             return response.text.strip()
         except Exception as e:
             return f"Error generating response: {str(e)}"
-    
-    def multi_hop_reasoning(self, query: str, max_hops: int = 3) -> Dict:
-        """Perform multi-hop reasoning through the knowledge graph"""
-        # Extract entities from query
-        query_analysis = self.processor.extract_entities_relations_llm(query)
-        query_entities = [e['text'] for e in query_analysis['entities']]
-        
-        if not query_entities:
-            # Fall back to regular query if no entities found
-            return self.query(query)
-        
-        # Find reasoning paths
-        all_paths = []
-        for entity in query_entities:
-            if entity in self.kg.graph:
-                paths = self._find_reasoning_paths(entity, max_hops)
-                all_paths.extend(paths)
-        
-        # Build enhanced context using regular query first
-        standard_result = self.query(query)
-        
-        if all_paths:
-            reasoning_context = "\nReasoning Chains:\n"
-            for i, path in enumerate(all_paths[:3]):
-                path_text = " → ".join([step['entity'] for step in path['path']])
-                reasoning_context += f"Chain {i+1}: {path_text}\n"
-            
-            enhanced_context = standard_result['context_used'] + reasoning_context
-            response = self._generate_response(query, enhanced_context)
-            
-            # Return with consistent structure including retrieval_info
-            return {
-                'answer': response,
-                'context_used': enhanced_context,
-                'retrieval_info': standard_result['retrieval_info'],  # Include retrieval info
-                'reasoning_paths': all_paths[:5],
-                'path_count': len(all_paths)
-            }
-        else:
-            # Return standard result if no paths found
-            return standard_result
-    
-    def _find_reasoning_paths(self, start_entity: str, max_hops: int) -> List[Dict]:
-        """Find reasoning paths from starting entity"""
-        paths = []
-        
-        def dfs_paths(current_entity, path, depth):
-            if depth >= max_hops:
-                return
-            
-            for neighbor in self.kg.graph.neighbors(current_entity):
-                if neighbor not in [p['entity'] for p in path]:
-                    edge_data = self.kg.graph.get_edge_data(current_entity, neighbor)
-                    relation = edge_data.get('relation', 'related_to') if edge_data else 'related_to'
-                    
-                    new_path = path + [{
-                        'entity': neighbor,
-                        'relation_from_previous': relation,
-                        'hop_number': depth + 1
-                    }]
-                    
-                    paths.append({
-                        'path': new_path,
-                        'start_entity': start_entity,
-                        'end_entity': neighbor,
-                        'length': len(new_path)
-                    })
-                    
-                    if depth < max_hops - 1:
-                        dfs_paths(neighbor, new_path, depth + 1)
-        
-        initial_path = [{'entity': start_entity, 'relation_from_previous': None, 'hop_number': 0}]
-        dfs_paths(start_entity, initial_path, 0)
-        
-        return paths
 
+def get_pdf_text(pdf_docs):
+    """Extract text from PDF files"""
+    from PyPDF2 import PdfReader
+    text = ""
+    for pdf in pdf_docs:
+        reader = PdfReader(pdf)
+        for page in reader.pages:
+            if page.extract_text():
+                text += page.extract_text()
+    return text
 
-def main():
-    """Example usage of the simplified Graph RAG system"""
-    
-    # Sample documents
-    documents = [
-        """
-        FutureTech Foundation is requesting a $100,000 grant from the National Education Grant Program
-        for their Youth Empowerment Through Digital Skills Training program. John Smith serves as the
-        director of FutureTech Foundation. The program aims to train 500 underserved youth in coding,
-        graphic design, and digital marketing within one year.
-        """,
-        """
-        ABC Technical Institute proposes an Introduction to Robotics workshop for XYZ High School.
-        Dr. Sarah Johnson leads the robotics program at ABC Technical Institute. The workshop costs
-        $2,000 total, with $1,200 for robotics kits, $600 for instructor fees, and $200 for materials.
-        """
-    ]
-    
-    # Initialize and build system
-    system = GraphRAGSystem()
-    system.build_knowledge_base(documents)
-    
-    # Test queries
-    test_queries = [
-        "What is the budget for the FutureTech Foundation program?",
-        "Who are the key people mentioned in these proposals?",
-        "Compare the costs of both educational programs",
-        "What skills are being taught in these programs?"
-    ]
-    
-    print("=== GRAPH RAG QUERY RESULTS ===")
-    for query in test_queries:
-        print(f"\nQuery: {query}")
-        result = system.query(query)
-        print(f"Answer: {result['answer']}")
-        print(f"Sources used: {result['retrieval_info']['chunks_found']} chunks, {result['retrieval_info']['entities_found']} entities")
-        
-        # Test multi-hop reasoning
-        reasoning_result = system.multi_hop_reasoning(query)
-        if 'path_count' in reasoning_result and reasoning_result['path_count'] > 0:
-            print(f"Reasoning paths found: {reasoning_result['path_count']}")
-
-
-if __name__ == "__main__":
-    main()
+def get_text_chunks(text):
+    """Split text into chunks"""
+    from langchain.text_splitter import RecursiveCharacterTextSplitter
+    splitter = RecursiveCharacterTextSplitter(chunk_size=1500, chunk_overlap=200)
+    return splitter.split_text(text)

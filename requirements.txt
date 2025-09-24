@@ -10,3 +10,9 @@ python-dotenv
 plotly
 matplotlib
 numpy
+langchain
+langchain_google_genai
+langchain_community
+langchain_groq
+rouge_score
+langchain_huggingface

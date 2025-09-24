@@ -11,7 +11,6 @@ from BaseRAG import get_pdf_text, get_text_chunks, create_vector_store, ask_ques
 from graph_rag import GraphRAGSystem, get_pdf_text as graph_get_pdf_text, get_text_chunks as graph_get_text_chunks
 import tempfile
 from dotenv import load_dotenv
-
 load_dotenv()
 
 # Initialize Groq client for evaluation
@@ -89,7 +88,7 @@ class RAGEvaluator:
             resp = self.client.chat.completions.create(
                 model="llama-3.1-8b-instant",
                 messages=[{"role": "user", "content": prompt}],
-                temperature=0
+                temperature=0.1
             )
             return json.loads(resp.choices[0].message.content)
         except Exception as e:
